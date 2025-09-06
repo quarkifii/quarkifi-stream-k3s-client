@@ -1,0 +1,15 @@
+[Unit]
+Description=Quarkifi Stream k3s client
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory={{CWD}}
+Environment="K3S_THIN_CLIENT_HOME={{CWD}}"
+ExecStart={{VENV_PATH}}/bin/python ./src/run.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

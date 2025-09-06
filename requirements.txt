@@ -1,0 +1,4 @@
+paho-mqtt==2.1.0
+kubernetes==32.0.1
+psutil==6.0.0
+jsonschema==4.23.0
