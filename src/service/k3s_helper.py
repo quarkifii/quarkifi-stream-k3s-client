@@ -121,13 +121,13 @@ class K3sHelper:
         namespace = deployment_yaml.get("metadata").get("namespace", "default")
         deployment_obj = api_client._ApiClient__deserialize(deployment_yaml, client.V1Deployment)
         
-        # check the images with imagePullPolicy "Never" and "IfNotPresent" are available in local repo
+        # check the images with imagePullPolicy "Never" are available in local repo
         containers = deployment_obj.spec.template.spec.containers
         images = []
         for container in containers:
             image = container.image
             image_pull_policy = container.image_pull_policy
-            if ((image_pull_policy == "Never") or (image_pull_policy == "IfNotPresent")):
+            if image_pull_policy == "Never":
                 images.append(image)
         imported_images = self.get_imported_images()
         if images and not set(images).issubset(imported_images):
