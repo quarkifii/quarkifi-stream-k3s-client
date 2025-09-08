@@ -48,8 +48,7 @@ class HeartBeat:
     def _report_status(self):
         while not self._stop_event.is_set():
             try:
+                self._on_heartbeat_callback()
                 self._stop_event.wait(self._heartbeat_frequency)
-                if not self._stop_event.is_set():
-                    self._on_heartbeat_callback()
             except Exception as ex:
                 logger.error(f"Error reporting status: {ex}")

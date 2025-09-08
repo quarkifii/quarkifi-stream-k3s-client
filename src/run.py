@@ -31,42 +31,70 @@ from messaging.message_processor import MessageProcessor
 current_file = os.path.basename(__file__)
 logger = get_logger(current_file)
 
-# callback function to handle beartbeat
-def on_heartbeat():
-    AppManager.report_apps_and_resources_status()
+class K3SContainerService:
+    def __init__(self):
+        self.config = None
+        self.message_processor = None
+        self.mqtt_manager = None
+        self.heartbeat = None
+    
+    def _on_heartbeat(self):
+        AppManager.report_apps_and_resources_status()
+    
+    def _on_connect_to_mqtt(self, client):
+        AppManager.set_mqtt_client(client)
+        self.message_processor.start()
+        self.heartbeat.start()
+        logger.info("Listening for the messages... (Ctrl+C to exit)")        
 
-# callback function to handle on connect (to mqtt) event
-def on_connect_to_mqtt(client):
-    AppManager.set_mqtt_client(client)
+    def _on_message_from_mqtt(self, payload):
+        AppManager.process_request(payload)
+    
+    def initialize(self):
+        try:
+            self.config = AppConfig()
+            AppManager.init(self.config)
+            self.message_processor = MessageProcessor(self._on_message_from_mqtt)
+            self.mqtt_manager = MQTTManager(self.config, self.message_processor, self._on_connect_to_mqtt)
+            self.heartbeat = HeartBeat(self.config.heartbeat_frequency, self._on_heartbeat)
+            return True
+        except Exception as ex:
+            logger.error(f"initialization error: {ex}")
+            return False
 
-# callback function to handle message from mqtt    
-def on_message_from_mqtt(payload):
-    AppManager.process_request(payload)
+    def start(self):
+        try:
+            # Connect to MQTT broaker
+            if not self.mqtt_manager.connect():
+                logger.error("failed to connect to MQTT broker")
+                return 1
+            # Start processing the incoming and outgoing the messages
+            self.mqtt_manager.loop_forever()
+        except KeyboardInterrupt:
+            logger.info("shutting down...")
+            self.shutdown()
+        except Exception as ex:
+            logger.error(f"runtime error: {ex}")
+            self.shutdown()
+            return 1
+        return 0
+    
+    def shutdown(self):
+        if self.mqtt_manager:
+            self.mqtt_manager.disconnect()
+        if self.heartbeat:
+            self.heartbeat.stop()
+        if self.message_processor:
+            self.message_processor.stop()
 
 def main():
-    try:
-        config = AppConfig()
-        AppManager.init(config)
-        message_processor = MessageProcessor(on_message_from_mqtt)
-        mqtt_manager = MQTTManager(config, message_processor, on_connect_to_mqtt)
-        heartbeat = HeartBeat(config.heartbeat_frequency, on_heartbeat)
-
-        if not mqtt_manager.connect():
-            logger.error("failed to connect to MQTT broker")
-            return 1
-        
-        message_processor.start()        
-        heartbeat.start()
-        logger.info("listening for messages... (Ctrl+C to exit)")
-        try:
-            mqtt_manager.loop_forever()
-        except KeyboardInterrupt:
-            mqtt_manager.disconnect()
-            heartbeat.stop()
-            message_processor.stop()
-
-    except Exception as ex:
-        logger.error(f"application error: {ex}")
+    svc = K3SContainerService()
+    
+    if not svc.initialize():
+        return 1
+    
+    if svc.start() != 0:
+        logger.error("Failed to start the service!!!")
         return 1
     
 if __name__ == "__main__":
