@@ -472,6 +472,7 @@ class K3sHelper:
             label_selector = ",".join(f"{k}={v}" for k, v in selector.items())
             pods = core_v1_api.list_namespaced_pod(namespace, label_selector=label_selector)
             logs = []
+            # get pod level logs
             for pod in pods.items:
                 pod_name = pod.metadata.name
                 lines = []
@@ -495,7 +496,18 @@ class K3sHelper:
                         "container": container_name,
                         "logs": lines
                     })
-
+            # get app level error logs if any
+            events = core_v1_api.list_namespaced_event(namespace)
+            lines = []
+            for event in events.items:
+                if event.involved_object.name.startswith(app_name):
+                    if event.reason in ["Failed", "BackOff", "Failed", "Warning"]:
+                        line = f"{event.reason}: {event.message}"
+                        lines.append(line)
+            logs.append({
+                "app": app_name,
+                "logs": lines
+            })
             app["logs"] = logs
             return app
         else:

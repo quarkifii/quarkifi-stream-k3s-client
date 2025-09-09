@@ -81,8 +81,8 @@ class AppManager:
             case "get_app_status":
                 cls.get_app_status(payload)
                 return
-            case "get_apps_status":
-                cls.get_apps_status(payload)
+            case "get_apps_and_resources_status":
+                cls.get_apps_and_resources_status(payload)
                 return 
             case "get_app_status_and_logs":
                 cls.get_app_status_and_logs(payload)
@@ -371,15 +371,29 @@ class AppManager:
 
     # This function gets all the apps's status
     @classmethod
-    def get_apps_status(cls, payload):
-        logger.info(f"Processing the request 'get_apps_status'")
-        request = "get_apps_status"
+    def get_apps_and_resources_status(cls, payload):
+        logger.info(f"Processing the request 'apps_and_resources_status'")
+        request = "get_apps_and_resources_status"
         request_id = payload.get("request_id")
         try:
             k3s = K3sHelper()
             apps = k3s.get_apps_status()
-            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": apps})
-            logger.info(f"Completed the request 'get_apps_status'")
+            resources = cls.get_resources_status()
+            apps_status = [app["status"] for app in apps]
+            apps_status_counts = Counter(apps_status)
+            app_counts = {
+                "total": len(apps_status)
+            }
+            for status, count in apps_status_counts.items():
+                app_counts[status] = count
+            
+            result = {
+                "apps": apps,
+                "resources": resources,
+                "app_counts": app_counts
+            }
+            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": result})
+            logger.info(f"Completed the request '{request}'")
         except ApiException as ex:
             cls._handle_api_error(request_id, request, ex)
         except Exception as ex:
