@@ -499,11 +499,15 @@ class K3sHelper:
             # get app level error logs if any
             events = core_v1_api.list_namespaced_event(namespace)
             lines = []
+            # get the current deployment's creation timestamp to filter recent events
+            deployment_creation_time = deployment.metadata.creation_timestamp
             for event in events.items:
                 if event.involved_object.name.startswith(app_name):
-                    if event.reason in ["Failed", "BackOff", "Failed", "Warning"]:
-                        line = f"{event.reason}: {event.message}"
-                        lines.append(line)
+                    # only include events that occurred after the current deployment was created
+                    if event.first_timestamp and event.first_timestamp >= deployment_creation_time:
+                        if event.reason in ["Failed", "BackOff", "Failed", "Warning"]:
+                            line = f"{event.reason}: {event.message}"
+                            lines.append(line)
             logs.append({
                 "app": app_name,
                 "logs": lines
