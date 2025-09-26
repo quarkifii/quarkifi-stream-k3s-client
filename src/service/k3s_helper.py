@@ -141,19 +141,12 @@ class K3sHelper:
         wait_event = threading.Event()
         wait_event.wait(5)
         for _ in range(120):
-            deployment = apps_v1_api.read_namespaced_deployment(app_name, namespace)
-            if deployment is not None:
-                spec = deployment.spec
-                status = deployment.status
-                desired = spec.replicas or 0
-                available = status.available_replicas or 0
-                updated = status.updated_replicas or 0
-                unavailable = status.unavailable_replicas or 0
-                # wait if deployment is not 'healthy' yet
-                if not (available == desired and updated == desired):
-                    wait_event.wait(1)
-                else:
-                    break
+            app = self.get_deployment_status(app_name=app_name, namespace=namespace) or {}
+            app_status = app.get("status")
+            if app_status == "Healthy":
+                break
+            else:
+                wait_event.wait(1)
     
     def get_deployment(self, app_name: str, namespace: str):
         apps_v1_api = client.AppsV1Api()
@@ -178,19 +171,12 @@ class K3sHelper:
         wait_event = threading.Event()
         wait_event.wait(5)
         for _ in range(120):
-            deployment = apps_v1_api.read_namespaced_deployment(app_name, namespace)
-            if deployment is not None:
-                spec = deployment.spec
-                status = deployment.status
-                desired = spec.replicas or 0
-                available = status.available_replicas or 0
-                updated = status.updated_replicas or 0
-                unavailable = status.unavailable_replicas or 0
-                # wait if deployment is not 'healthy' yet
-                if not (available == desired and updated == desired):
-                    wait_event.wait(1)
-                else:
-                    break       
+            app = self.get_deployment_status(app_name=app_name, namespace=namespace) or {}
+            app_status = app.get("status")
+            if app_status == "Healthy":
+                break
+            else:
+                wait_event.wait(1)    
         
     def scale_patch_app(self, app_name: str, namespace: str, replicas: int):
         scale_patch = {
@@ -299,13 +285,12 @@ class K3sHelper:
         except Exception as ex:
             return None
         if deployment:
-
-            spec = deployment.spec
-            status = deployment.status
-            desired_replicas = spec.replicas or 0
-            available_replicas = status.available_replicas or 0
-            updated_replicas = status.updated_replicas or 0
-            unavailable_replicas = status.unavailable_replicas or 0
+            creation_time = deployment.metadata.creation_timestamp
+            last_update_time = deployment.status.conditions[-1].last_update_time
+            desired_replicas = deployment.spec.replicas or 0
+            available_replicas = deployment.status.available_replicas or 0
+            updated_replicas = deployment.status.updated_replicas or 0
+            unavailable_replicas = deployment.status.unavailable_replicas or 0
 
             app_uptime = None
             app = None
@@ -319,17 +304,20 @@ class K3sHelper:
             app_status = "Unknown"
             if desired_replicas == 0 and len(pods) == 0:
                 app_status = "Stopped"
+            elif desired_replicas == 0 and len(pods) > 0:
+                app_status = "Stopping"
+            elif desired_replicas > 0 and len(pods) > desired_replicas:
+                app_status = "Updating"
             elif desired_replicas > 0 and desired_replicas == len(pods):
                 # if all pods are 'Running', then app is 'Healthy'
                 if all(status == 'Running' for status in statuses):
                     app_status = "Healthy"
+                # if any one pod is 'Running', then app is 'Partial'
+                elif any(status == 'Running' for status in statuses):
+                    app_status = "Partial"
                 # if all pods are 'Pending', then app is 'Pending'
                 elif all(status == 'Pending' for status in statuses):
                     app_status = "Pending"
-                elif any(status == 'Running' for status in statuses):
-                    app_status = "Partial"
-            elif desired_replicas == 0 and len(pods) > 0:
-                app_status = "Stopping"
 
             total_cpu_usage = 0
             total_memory_usage = 0
@@ -444,6 +432,8 @@ class K3sHelper:
                 "app_name": app_name,
                 "namespace": namespace,
                 "status": app_status,
+                "creation_time": creation_time.isoformat(),
+                "last_update_time": last_update_time.isoformat(),
                 "pods": pods_,
                 "replicas": {
                   "desired": desired_replicas,
@@ -500,12 +490,12 @@ class K3sHelper:
             events = core_v1_api.list_namespaced_event(namespace)
             lines = []
             # get the current deployment's creation timestamp to filter recent events
-            deployment_creation_time = deployment.metadata.creation_timestamp
+            deployment_last_update_time = deployment.status.conditions[-1].last_update_time
             for event in events.items:
                 if event.involved_object.name.startswith(app_name):
                     # only include events that occurred after the current deployment was created
-                    if event.first_timestamp and event.first_timestamp >= deployment_creation_time:
-                        if event.reason in ["Failed", "BackOff", "Failed", "Warning"]:
+                    if event.first_timestamp and event.first_timestamp >= deployment_last_update_time:
+                        if event.reason in ["Failed", "BackOff", "Error", "Warning"]:
                             line = f"{event.reason}: {event.message}"
                             lines.append(line)
             logs.append({
@@ -517,6 +507,84 @@ class K3sHelper:
         else:
             raise RuntimeError("app not found")
         
+    def get_deployment_status(self, app_name: str, namespace: str="dafault"):
+        core_v1_api = client.CoreV1Api()
+        apps_v1_api = client.AppsV1Api()
+        metrics_api = client.CustomObjectsApi()
+        try:
+            deployment = apps_v1_api.read_namespaced_deployment(app_name, namespace)
+        except Exception as ex:
+            return None
+        if deployment:
+            creation_time = deployment.metadata.creation_timestamp
+            last_update_time = deployment.status.conditions[-1].last_update_time
+            desired_replicas = deployment.spec.replicas or 0
+            available_replicas = deployment.status.available_replicas or 0
+            updated_replicas = deployment.status.updated_replicas or 0
+            unavailable_replicas = deployment.status.unavailable_replicas or 0
+
+            app_uptime = None
+            match_labels = deployment.spec.selector.match_labels
+            label_selector = ",".join([f"{k}={v}" for k, v in match_labels.items()])
+            pods = core_v1_api.list_namespaced_pod(namespace=namespace, label_selector=label_selector).items
+            statuses = [pod.status.phase for pod in pods]
+
+            app_status = "Unknown"
+            if desired_replicas == 0 and len(pods) == 0:
+                app_status = "Stopped"
+            elif desired_replicas == 0 and len(pods) > 0:
+                app_status = "Stopping"
+            elif desired_replicas > 0 and len(pods) > desired_replicas:
+                app_status = "Updating"
+            elif desired_replicas > 0 and desired_replicas == len(pods):
+                # if all pods are 'Running', then app is 'Healthy'
+                if all(status == 'Running' for status in statuses):
+                    app_status = "Healthy"
+                # if any one pod is 'Running', then app is 'Partial'
+                elif any(status == 'Running' for status in statuses):
+                    app_status = "Partial"
+                # if all pods are 'Pending', then app is 'Pending'
+                elif all(status == 'Pending' for status in statuses):
+                    app_status = "Pending"
+                    
+            for pod in pods:
+                status = pod.status.phase
+                start_time = pod.status.start_time
+                if start_time is not None:
+                    # get system boot time to handle reboot scenarios
+                    boot_time = self.get_system_boot_time()
+                    pod_start_time = start_time.replace(tzinfo=None)
+                    # Use the later of boot time or pod start time as the effective start time
+                    effective_start_time = max(boot_time, pod_start_time)
+                    pod_uptime = int((datetime.utcnow() - effective_start_time).total_seconds())
+
+                    # capture the earliest uptime time among the pods
+                    if app_uptime is None:
+                        app_uptime = pod_uptime
+                    else:
+                        if pod_uptime > app_uptime:
+                            app_uptime = pod_uptime
+
+
+            app = {
+                "app_name": app_name,
+                "namespace": namespace,
+                "status": app_status,
+                "creation_time": creation_time.isoformat(),
+                "last_update_time": last_update_time.isoformat(),
+                "replicas": {
+                  "desired": desired_replicas,
+                  "available": available_replicas,
+                  "updated": updated_replicas,
+                  "unavailable": unavailable_replicas
+                }
+            }
+            if app_uptime is not None:
+                app["uptime"] = app_uptime
+            return app
+        else:
+            return None
+            
     # This function gets the status of all the deployments/apps
     def get_apps_status(self):
         apps_v1_api = client.AppsV1Api()

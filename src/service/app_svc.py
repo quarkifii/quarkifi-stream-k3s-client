@@ -229,7 +229,13 @@ class AppManager:
             stop_event.set()
             
             app = k3s.get_app_status(deployment_name, namespace)
-            cls.notify_message({"request_id":request_id, "request": "deploy_app", "status": "Completed", "result": app})
+            # determine the operation status based on app's status
+            app_status = app.get("status")
+            if app_status == "Healthy":
+                status = "Completed"
+            else:
+                status = "Failed"
+            cls.notify_message({"request_id":request_id, "request": "deploy_app", "status": status, "result": app})
             logger.info(f"Completed the request 'deploy_app'")
         except ApiException as ex:
             cls._handle_api_error(request_id, request, ex)
@@ -282,7 +288,12 @@ class AppManager:
             
             # get the status of app and report to the client
             app = k3s.get_app_status(app_name, namespace)
-            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": app})
+            app_status = app.get("status")
+            if app_status == "Healthy":
+                status = "Completed"
+            else:
+                status = "Failed"            
+            cls.notify_message({"request_id":request_id, "request": request, "status": status, "result": app})
             logger.info(f"Completed the request 'start_app'")
         except ApiException as ex:
             cls._handle_api_error(request_id, request, ex)
@@ -459,7 +470,13 @@ class AppManager:
             stop_event.set()
             
             app = k3s.get_app_status(deployment_name, namespace)
-            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": app})
+            # determine the operation status based on app's status
+            app_status = app.get("status")
+            if app_status == "Healthy":
+                status = "Completed"
+            else:
+                status = "Failed"
+            cls.notify_message({"request_id":request_id, "request": request, "status": status, "result": app})
             logger.info(f"Completed the request '{request}'")            
         except ApiException as ex:
             cls._handle_api_error(request_id, request, ex)
