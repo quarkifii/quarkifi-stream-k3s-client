@@ -26,7 +26,7 @@ from kubernetes.client import V1Pod
 from kubernetes.client.exceptions import ApiException
 from typing import List, Dict, Optional
 from utils.commons import format_uptime
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.logger import get_logger
 
 current_file = os.path.basename(__file__)
@@ -463,6 +463,7 @@ class K3sHelper:
             pods = core_v1_api.list_namespaced_pod(namespace, label_selector=label_selector)
             logs = []
             # get pod level logs
+            problematic_pod_update_time = None
             for pod in pods.items:
                 pod_name = pod.metadata.name
                 lines = []
@@ -486,18 +487,27 @@ class K3sHelper:
                         "container": container_name,
                         "logs": lines
                     })
-            # get app level error logs if any
-            events = core_v1_api.list_namespaced_event(namespace)
+                if pod.status.phase != 'Running':
+                    pod_last_update_time = min(managed_field.time for managed_field in pod.metadata.managed_fields)
+                    if problematic_pod_update_time == None:
+                        problematic_pod_update_time = pod_last_update_time
+                    else:
+                        if problematic_pod_update_time > pod_last_update_time:
+                            problematic_pod_update_time = pod_last_update_time
+
+            
             lines = []
-            # get the current deployment's creation timestamp to filter recent events
-            deployment_last_update_time = deployment.status.conditions[-1].last_update_time
-            for event in events.items:
-                if event.involved_object.name.startswith(app_name):
-                    # only include events that occurred after the current deployment was created
-                    if event.first_timestamp and event.first_timestamp >= deployment_last_update_time:
-                        if event.reason in ["Failed", "BackOff", "Error", "Warning"]:
-                            line = f"{event.reason}: {event.message}"
-                            lines.append(line)
+            # if any pod is not in 'Running' state, get app level error logs if any
+            if problematic_pod_update_time is not None:
+                events = core_v1_api.list_namespaced_event(namespace)
+                problematic_pod_update_time = problematic_pod_update_time - timedelta(seconds=10)
+                for event in events.items:
+                    if event.involved_object.name.startswith(app_name):
+                        # only include events that occurred after the current deployment was created
+                        if event.first_timestamp and event.first_timestamp >= problematic_pod_update_time:
+                            if event.reason in ["Failed", "BackOff", "Error", "Warning"]:
+                                line = f"{event.reason}: {event.message}"
+                                lines.append(line)
             logs.append({
                 "app": app_name,
                 "logs": lines
