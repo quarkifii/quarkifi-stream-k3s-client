@@ -8,7 +8,7 @@
 
 This repository provides the K3S thin client required to use [Quarkifi Stream](https://qstream.quarkifi.com/) Edge Computing Management.
 
-## What Is Edge Computing and Quarkifi Stream Platform
+## What Is Quarkifi Stream Edge Orchestrator Platform
 Edge computing is a distributed model that processes data near its source—often on devices like Raspberry Pi or Banana Pi—to minimize latency and bandwidth consumption. Using a platform like [Quarkifi Stream](https://qstream.quarkifi.com/), users can define device endpoints in the cloud and manage applications as containers within a lightweight K3s runtime on the edge devices. This allows for full lifecycle management, including deployment, starting, stopping, and scaling applications remotely.
 ![Quarkifi Stream k3S Thin Client Deployment](https://qstream.quarkifi.com/wp-content/uploads/2025/09/Multicolor-Pastel-Modern-Corporate-Infographic-And-Chart-Presentation.png)
 
@@ -64,9 +64,9 @@ chmod +x ./setup.sh
 ### Post Installation - Device Connection
 ####Create Device Endpoint at  [Quarkifi Stream App](https://stream.quarkifi.com/) 
 1. Create a user in [Quarkifi Stream App](https://stream.quarkifi.com/) 
-2. Navigate to Menu Edge Device Management
+2. Navigate to Menu Edge Orchestrator
 
-![Edge Device Management](https://qstream.quarkifi.com/wp-content/uploads/2025/09/Screenshot-2025-09-08-162209.png)
+![Edge Orchestrator](https://qstream.quarkifi.com/wp-content/uploads/2025/10/Screenshot-2025-10-11-165146.png)
 
 3. Click on Add Device
 
@@ -97,12 +97,12 @@ mqtt_manager.py | INFO | Connected to mqtt.qconsole.quarkifi.com
 
 ![Device Info](https://qstream.quarkifi.com/wp-content/uploads/2025/09/Screenshot-2025-09-08-164613.png)
 
-### Post Device Connection - Application Add
-
+### Post Device Connection - Manage Applications
+[Manage Applications](applications.md)
 
 ## More Information
 
-More information of Quarkifi DB can be found [here](https://qstream.quarkifi.com/quarkdb/).
+More information of Quarkifi Stream Platform can be found [here](https://qstream.quarkifi.com).
 
 For any issue please reach out to support@quarkifi.com or raise an issue.
 
