@@ -106,6 +106,7 @@ Once applications are deployed, you can perform various management actions:
 
 - **Start/Stop Applications**: Control application state
 - **Scale Replicas**: Adjust the number of running instances
+- **Analyze Logs**: Analyze logs of the container application
 - **Update Configuration**: Modify environment variables and settings
 - **View Metrics**: Monitor resource usage and performance
 - **Delete Applications**: Remove deployed applications
