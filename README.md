@@ -10,6 +10,8 @@ This repository provides the K3S thin client required to use [Quarkifi Stream](h
 
 ## What Is Quarkifi Stream Edge Orchestrator Platform
 Edge computing is a distributed model that processes data near its source—often on devices like Raspberry Pi or Banana Pi—to minimize latency and bandwidth consumption. Using a platform like [Quarkifi Stream](https://qstream.quarkifi.com/), users can define device endpoints in the cloud and manage applications as containers within a lightweight K3s runtime on the edge devices. This allows for full lifecycle management, including deployment, starting, stopping, and scaling applications remotely.
+
+[Quarkifi Stream](https://qstream.quarkifi.com/) is completely free to start. It provides free access to all Edge Application Management functions for a significant amount of time. 
 ![Quarkifi Stream k3S Thin Client Deployment](https://qstream.quarkifi.com/wp-content/uploads/2025/09/Multicolor-Pastel-Modern-Corporate-Infographic-And-Chart-Presentation.png)
 
 **Benefits:**
