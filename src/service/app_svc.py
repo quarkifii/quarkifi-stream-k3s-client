@@ -22,7 +22,7 @@
 
 from service.k3s_helper import K3sHelper
 from kubernetes.client.exceptions import ApiException
-import os, json, yaml, psutil, traceback
+import os, sys, json, time, re, yaml, psutil, subprocess, traceback
 import configparser, requests
 from collections import Counter
 from utils.commons import genearte_random_string, format_k3s_api_error
@@ -104,7 +104,16 @@ class AppManager:
                 return
             case "delete_all_apps_and_images":
                 cls.delete_all_apps_and_images(payload)
+                return
+            case "get_ssh_public_key":
+                cls.get_ssh_public_key(payload)
+                return
+            case "start_reverse_ssh_connection":
+                cls.start_reverse_ssh_connection(payload)
                 return                
+            case "stop_reverse_ssh_connection":
+                cls.stop_reverse_ssh_connection(payload)
+                return
             case _:
                 logger.error(f"unknown comamnd: {command}")
                 return
@@ -701,7 +710,7 @@ class AppManager:
         except ApiException as ex:
             cls._handle_api_error(request_id, request, ex)
         except Exception as ex:
-            cls._handle_generic_error(request_id, request, ex) 
+            cls._handle_generic_error(request_id, request, ex)
         finally:
             if stop_event is not None:
                 stop_event.set()
@@ -771,7 +780,126 @@ class AppManager:
         except Exception as ex:
             error = str(ex)
             logger.error(error)
-      
+
+    @classmethod
+    def get_ssh_public_key(cls, payload):
+        logger.info(f"Processing the request 'get_ssh_public_key'")
+        request = "get_ssh_public_key"
+        request_id = payload.get("request_id")
+        if request_id is None:
+            logger.error("'request_id' is not specified in the request")
+            return
+        user_name = payload.get("user_name")
+        if user_name is None:
+            error = "user_name is not specified in the request"
+            cls.notify_message({"request_id":request_id, "request": request, "status": "Failed", "reason": error})
+            logger.error(error)
+            return
+        public_key_file = f"/home/{user_name}/.ssh/qstream.pub"
+        try:
+            with open(public_key_file, 'r') as file:
+                content = file.read()
+                content = content.rstrip("\n")
+            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": {"public_key": content}})
+        except Exception as ex:
+            logger.error(str(ex))
+            cls._handle_generic_error(request_id, request, ex)
+
+    @classmethod
+    def start_reverse_ssh_connection(cls, payload):
+        logger.info(f"Processing the request 'start_reverse_ssh_connection'")
+        request = "start_reverse_ssh_connection"
+        request_id = payload.get("request_id")
+        if request_id is None:
+            logger.error("'request_id' is not specified in the request")
+            return
+        service_name = 'quarkifi-stream-ssh-tunnel'
+        try:
+            ssh_bridge_server = payload.get("ssh_bridge_server")
+            if ssh_bridge_server is None:
+                error = "ssh_bridge_server is not specified in the request"
+                cls.notify_message({"request_id":request_id, "request": request, "status": "Failed", "reason": error})
+                logger.error(error)
+                return
+            file_path = f"/tmp/{service_name}.env"
+            text_line = f"SSH_BRIDGE_SERVER={ssh_bridge_server}"
+            with open(file_path, 'w') as file:
+                file.write(text_line + '\n')
+
+            request_start_time = int(time.time())
+
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'stop', service_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'start', service_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            log_file = "/tmp/quarkifi-stream-ssh-tunnel.log"
+            log_file_updated = False
+            count = 0
+            allocated_port = None
+            while True:
+                time.sleep(1)
+                count += 1
+                if os.path.exists(log_file):
+                    log_file_updated_time = int(os.path.getmtime(log_file))
+                    logger.info(f"request_start_time: {request_start_time}, log_file_updated_time: {log_file_updated_time}")
+                    log_file_updated = os.path.exists(log_file) and (log_file_updated_time >= request_start_time)
+                    if (log_file_updated == True) or (count >= 10):
+                        time.sleep(1)
+                        break
+
+            content = ""
+            if log_file_updated:
+                time.sleep(1)
+                with open(log_file, 'r') as file:
+                    content = file.read()
+                    match = re.search(r'Allocated port (\d+)', content)
+                    allocated_port = int(match.group(1)) if match else None
+
+            if log_file_updated and allocated_port:
+                logger.info(f"Successfully started the ssh tunnel!")
+                result = {
+                    "allocated_port": allocated_port
+                }
+                cls.notify_message({"request_id":request_id, "request": request, "status": "Completed", "result": result})
+            else:
+                logger.info(f"Failed to start the ssh tunnel!")
+                cls.notify_message({"request_id":request_id, "request": request, "status": "Failed", "error": content})
+        except subprocess.CalledProcessError as ex:
+            logger.error(f"Failed to start the service {service_name}: {ex.stderr}")
+            cls._handle_generic_error(request_id, request, ex)
+
+    @classmethod
+    def stop_reverse_ssh_connection(cls, payload):
+        logger.info(f"Processing the request 'stop_reverse_ssh_connection'")
+        request = "stop_reverse_ssh_connection"
+        request_id = payload.get("request_id")
+        if request_id is None:
+            logger.error("'request_id' is not specified in the request")
+            return
+        service_name = 'quarkifi-stream-ssh-tunnel'
+        try:
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'stop', service_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            logger.info(f"Successfully stopped the {service_name} service")
+            cls.notify_message({"request_id":request_id, "request": request, "status": "Completed"})
+        except subprocess.CalledProcessError as ex:
+            logger.error(f"Failed to stop the service {service_name}: {ex.stderr}")
+            cls._handle_generic_error(request_id, request, ex)
+
     @classmethod
     def _handle_error(cls, request_id: str, request: str, error: str):
         logger.error(f"request: {request}, request_id: {request_id}, error: {error}")

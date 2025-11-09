@@ -26,6 +26,17 @@ else
   sudo chmod 644 /etc/rancher/k3s/k3s.yaml
 fi
 
+# Generate public/private rsa key pair
+KEY_PATH="$HOME/.ssh"
+
+if [ -f "$KEY_PATH/id_rsa" ] && [ -f "$KEY_PATH/id_rsa.pub" ]; then
+  echo "ssh RSA key already exists at $KEY_PATH"
+else
+  echo "Generating SSH RSA key..."
+  ssh-keygen -t rsa -b 4096 -f "$KEY_PATH/id_rsa" -N ""
+  echo "ssh RSA key generated at $KEY_PATH"
+fi
+
 if [ -n "$VIRTUAL_ENV" ]; then
     venv_path=$VIRTUAL_ENV
 else
@@ -52,12 +63,22 @@ pip install -r requirements.txt
 echo "Packages installed successfully."
 
 echo "Deploying the quarkifi-stream-k3s-client service..."
+
 # configure the quarkifi-stream-k3s-client.service.service file
 cwd=$(pwd)
+user=$(whoami)
+
 service_file="$cwd/quarkifi-stream-k3s-client.service"
+sed -i "s|{{USER}}|$user|g" "$service_file"
 sed -i "s|{{CWD}}|$cwd|g" "$service_file"
 sed -i "s|{{VENV_PATH}}|$venv_path|g" "$service_file"
 sudo cp $service_file /etc/systemd/system/.
 sudo systemctl daemon-reload
 sudo systemctl enable quarkifi-stream-k3s-client
-#sudo service quarkifi-stream-k3s-client start
+
+echo "Deploying the quarkifi-stream-ssh-tunnel service..."
+service_file="$cwd/quarkifi-stream-ssh-tunnel.service"
+sed -i "s|{{USER}}|$user|g" "$service_file"
+sudo cp $service_file /etc/systemd/system/.
+sudo systemctl daemon-reload
+sudo systemctl enable quarkifi-stream-ssh-tunnel
