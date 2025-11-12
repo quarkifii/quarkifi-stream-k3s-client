@@ -68,7 +68,7 @@ chmod +x ./setup.sh
 1. Create a user in [Quarkifi Stream App](https://stream.quarkifi.com/) 
 2. Navigate to Menu Edge Orchestrator
 
-![Edge Orchestrator](https://qstream.quarkifi.com/wp-content/uploads/2025/10/Screenshot-2025-10-11-165146.png)
+![Edge Orchestrator](https://qstream.quarkifi.com/wp-content/uploads/2025/11/Screenshot-2025-11-12-205412.png)
 
 3. Click on Add Device
 
