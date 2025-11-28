@@ -789,13 +789,13 @@ class AppManager:
         if request_id is None:
             logger.error("'request_id' is not specified in the request")
             return
-        user_name = payload.get("user_name")
-        if user_name is None:
-            error = "user_name is not specified in the request"
+        username = payload.get("username")
+        if username is None:
+            error = "username is not specified in the request"
             cls.notify_message({"request_id":request_id, "request": request, "status": "Failed", "reason": error})
             logger.error(error)
             return
-        public_key_file = f"/home/{user_name}/.ssh/qstream.pub"
+        public_key_file = f"/home/{username}/.ssh/id_rsa.pub"
         try:
             with open(public_key_file, 'r') as file:
                 content = file.read()
