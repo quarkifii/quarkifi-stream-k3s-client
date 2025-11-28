@@ -760,6 +760,9 @@ class AppManager:
     def report_apps_and_resources_status(cls):
         logger.info(f"Processing 'report_apps_and_resources_status'")
         try:
+            pwd = os.getcwd()
+            username = pwd.split("/")[2]
+        
             k3s = K3sHelper()
             apps = k3s.get_apps_status()
             resources = cls.get_resources_status()
@@ -772,6 +775,7 @@ class AppManager:
                 app_counts[status] = count
             
             status = {
+                "username": username,
                 "apps": apps,
                 "resources": resources,
                 "app_counts": app_counts
@@ -789,13 +793,9 @@ class AppManager:
         if request_id is None:
             logger.error("'request_id' is not specified in the request")
             return
-        username = payload.get("username")
-        if username is None:
-            error = "username is not specified in the request"
-            cls.notify_message({"request_id":request_id, "request": request, "status": "Failed", "reason": error})
-            logger.error(error)
-            return
-        public_key_file = f"/home/{username}/.ssh/id_rsa.pub"
+        pwd = os.getcwd()
+        username = pwd.split("/")[2]
+        public_key_file = f"/home/{username}/.ssh/id_qstream.pub"
         try:
             with open(public_key_file, 'r') as file:
                 content = file.read()

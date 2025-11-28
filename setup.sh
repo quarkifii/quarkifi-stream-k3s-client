@@ -29,11 +29,11 @@ fi
 # Generate public/private rsa key pair
 KEY_PATH="$HOME/.ssh"
 
-if [ -f "$KEY_PATH/id_rsa" ] && [ -f "$KEY_PATH/id_rsa.pub" ]; then
+if [ -f "$KEY_PATH/id_qstream" ] && [ -f "$KEY_PATH/id_qstream.pub" ]; then
   echo "ssh RSA key already exists at $KEY_PATH"
 else
   echo "Generating SSH RSA key..."
-  ssh-keygen -t rsa -b 4096 -f "$KEY_PATH/id_rsa" -N ""
+  ssh-keygen -t rsa -b 4096 -f "$KEY_PATH/id_qstream" -N ""
   echo "ssh RSA key generated at $KEY_PATH"
 fi
 
