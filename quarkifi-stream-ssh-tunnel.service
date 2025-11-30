@@ -1,0 +1,16 @@
+[Unit]
+Description=SSH Reverse Tunnel from SSH Bridge Server to this Device
+After=network.target
+
+[Service]
+User={{USER}}
+Group={{USER}}
+EnvironmentFile=/tmp/quarkifi-stream-ssh-tunnel.env
+ExecStart=/usr/bin/ssh -i /home/{{USER}}/.ssh/id_qstream -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -R 0:localhost:22 device-user@${SSH_BRIDGE_SERVER} -N
+Restart=always
+RestartSec=5
+StandardOutput=file:/tmp/quarkifi-stream-ssh-tunnel.log
+StandardError=file:/tmp/quarkifi-stream-ssh-tunnel.log
+
+[Install]
+WantedBy=multi-user.target

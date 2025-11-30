@@ -501,6 +501,7 @@ class K3sHelper:
             if problematic_pod_update_time is not None:
                 events = core_v1_api.list_namespaced_event(namespace)
                 problematic_pod_update_time = problematic_pod_update_time - timedelta(seconds=10)
+                print(f"problematic_pod_update_time: {problematic_pod_update_time}");
                 for event in events.items:
                     if event.involved_object.name.startswith(app_name):
                         # only include events that occurred after the current deployment was created
